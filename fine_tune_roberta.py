@@ -1,4 +1,4 @@
-# # File 2: evaluate_disc.py
+# This script fine-tunes a RoBERTa model for sequence classification
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -13,7 +13,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 
 # Load the classifier training data
-data_path = "/home/scharng/scratch/final_project/processed/train_labeled.csv"
+data_path = "./processed/train_labeled.csv"
 df = pd.read_csv(data_path)
 
 # Split the data into train and validation sets
@@ -38,7 +38,7 @@ model = RobertaForSequenceClassification.from_pretrained("roberta-base", num_lab
 
 # Training arguments
 training_args = TrainingArguments(
-    output_dir="/home/scharng/scratch/final_project/roberta-style-clf",
+    output_dir="./roberta-style-clf",
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
     num_train_epochs=3,
@@ -46,7 +46,7 @@ training_args = TrainingArguments(
     save_steps=500,
     save_total_limit=1,
     logging_steps=100,
-    logging_dir="/home/scharng/scratch/final_project/roberta-style-clf/logs"
+    logging_dir="./logs"
 )
 
 # Evaluation metrics
@@ -68,5 +68,5 @@ trainer = Trainer(
 trainer.train()
 
 # Save final model
-trainer.save_model("/home/scharng/scratch/final_project/roberta-style-clf/final")
+trainer.save_model("./final")
 print("Fine-tuning complete and model saved!")

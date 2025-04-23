@@ -1,4 +1,3 @@
-# File 1: prepare_data.py
 # This script splits the original parallel corpus into train/valid/test sets,
 # and generates labeled datasets for training and evaluating a style classifier.
 
@@ -6,9 +5,8 @@ from pathlib import Path
 import pandas as pd
 
 # Load original files
-modern_path = Path("/home/scharng/scratch/final_project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.modern")
-original_path = Path("/home/scharng/scratch/final_project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.original")
-
+modern_path = Path("/Users/wenhung/Desktop/Github/CS587-Deep-Learning-Final-Project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.modern")
+original_path = Path("/Users/wenhung/Desktop/Github/CS587-Deep-Learning-Final-Project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.original")
 with modern_path.open("r", encoding="utf-8") as f:
     modern_lines = [line.strip() for line in f.readlines()]
 
@@ -45,7 +43,7 @@ df_test_labeled = pd.concat([
 ]).sample(frac=1, random_state=42).reset_index(drop=True)
 
 # Save all datasets to CSV for later use
-output_dir = Path("/home/scharng/scratch/final_project/processed")
+output_dir = Path("./processed")
 output_dir.mkdir(exist_ok=True)
 
 df_train.to_csv(output_dir / "train_parallel.csv", index=False)
@@ -55,4 +53,4 @@ df_train_labeled.to_csv(output_dir / "train_labeled.csv", index=False)
 df_valid_labeled.to_csv(output_dir / "valid_labeled.csv", index=False)
 df_test_labeled.to_csv(output_dir / "test_labeled.csv", index=False)
 
-print("✅ Data preparation complete!")
+print("Data preparation complete!")
