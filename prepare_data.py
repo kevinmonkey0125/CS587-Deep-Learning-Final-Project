@@ -5,8 +5,8 @@ from pathlib import Path
 import pandas as pd
 
 # Load original files
-modern_path = Path("/Users/wenhung/Desktop/Github/CS587-Deep-Learning-Final-Project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.modern")
-original_path = Path("/Users/wenhung/Desktop/Github/CS587-Deep-Learning-Final-Project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.original")
+modern_path = Path("/home/scharng/scratch/final_project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.modern")
+original_path = Path("/home/scharng/scratch/final_project/Shakespeare/data/align/model_16and7plays/data/train_plays1and2_clean.original")
 with modern_path.open("r", encoding="utf-8") as f:
     modern_lines = [line.strip() for line in f.readlines()]
 

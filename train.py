@@ -2,15 +2,18 @@ import math
 import random
 import torch
 import pandas as pd
+import numpy as np
 from transformers import pipeline, T5Tokenizer, EncoderDecoderCache
 from Evaluate_Disc_BertScore import load_model_and_tokenizer, compute_E_disc, rescaled_BERTScore
+from utlis import energy, compute_inidvidual_Jscore, get_lowest_energy_sample
 from typing import List, Tuple
 import json
 from datetime import datetime
 from transformers import logging
 from tqdm import tqdm
 import nltk  # Add at the top of the file
-nltk.download('punkt')  # Download tokenizer data
+nltk.download("punkt", quiet=True)
+nltk.download("punkt_tab", quiet=True)
 logging.set_verbosity_error()
 
 # Configuration 
@@ -19,49 +22,11 @@ ALPHA_BERT = 0.5    # weight of E_BERTScore
 N_ITER = 25         # MH iterations per chain
 S = 5  # Numebr of seed sentences from test set
 NUM_CHAINS = 3  # Number of parallel chains per seed
-NUM_EXPERIMENTS = 5  # Number of experiments to run
+NUM_EXPERIMENTS = 1  # Number of experiments to run
 SEED = 42  # Random seed for reproducibility
 
 random.seed(SEED)
 torch.manual_seed(SEED)
-
-def energy(x, seed):
-    # E_disc
-    E_disc, _ = compute_E_disc(x, model, tokenizer, device)
-    # E_BERTScore
-    E_bert = -rescaled_BERTScore([x], [seed])[0]
-    return ALPHA_DISC * E_disc + ALPHA_BERT * E_bert
-
-
-def compute_inidvidual_Jscore(output_sentence, seed_text):
-    # p(Shakespeare | output_sentence)
-    _, probs = compute_E_disc(output_sentence, model, tokenizer, device)
-    ACC = 1 if probs[1] > probs[0] else 0
-    print(f"ACC: {ACC}")
-    
-    # Similarity score
-    SIM = rescaled_BERTScore([output_sentence], [seed_text])[0]
-    print(f"SIM: {SIM}")
-    
-    # Formality score
-    formality_result = formality_classifier(output_sentence)[0]
-    
-    FL = 1 if formality_result['label'] == 'LABEL_1' else 0
-    print(f"FL: {FL}")
-    
-    # Compute individual score
-    return ACC * SIM * FL
-
-def get_lowest_energy_sample(seed_chains):
-    all_samples = []
-    for chain in seed_chains:
-        all_samples.extend(chain)  
-            
-    # Sort by energy (second element of tuple) and get the lowest
-    if all_samples:
-        best_sample = min(all_samples, key=lambda x: x[1])
-        return best_sample[0]  # Return the sentence only
-    return None
 
 # Load test parallel data and randomly sample S seed texts
 test_df = pd.read_csv("./processed/test_parallel.csv")
@@ -82,11 +47,14 @@ model, tokenizer, device = load_model_and_tokenizer()
 # Proposal model
 generator = pipeline(
     task="text2text-generation",
-    model="google/flan-t5-small",
+    # model="google/flan-t5-small",
+    model="google/flan-t5-base",
     device="cuda" if device.type == "cuda" else -1,
     do_sample=True,
     top_k=50,
 )
+generator.model.to(device)
+
 # Formality classifier
 formality_classifier = pipeline(
     "text-classification",
@@ -124,14 +92,24 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
         # Run multiple chains for each seed
         for chain_id in tqdm(range(NUM_CHAINS), desc=f"Chains (Seed {seed_idx})", position=2, leave=False):
             current = seed_text
-            chain = [(current, energy(current, seed_text))]  # Add initial state to chain
+            # chain = [(current, energy(current, seed_text))]  # Add initial state to chain
+            chain = [(current, energy(current, seed_text, model, tokenizer, device))]
 
             for t in tqdm(range(1, N_ITER + 1), desc=f"Iterations (Chain {chain_id})", position=3, leave=False):
-                E_current = energy(current, seed_text)
+                E_current = energy(current, seed_text, model, tokenizer, device)
                 
                 # Propose a new sentence
                 ### May have to modify prompt.
-                prompt = f'Rewrite this sentence in the style of Shakespeare: "{current}"'
+                # prompt = f'Rewrite this sentence in the style of Shakespeare: "{current}"'
+                # prompt = f'Paraphrase the following sentence using early modern English without mentioning Shakespeare or writing about styles:\n"{current}"'
+                prompt = (
+                "Paraphrase the following sentence in the style of William Shakespeare, "
+                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                "while preserving the exact meaning and punctuation. "
+                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                f"Sentence: \"{current}\""
+                )
+
                 ### Could consider different temperatures later
                 ### proposal may add unnecessary words: change propmt????
                 out = generator(
@@ -142,13 +120,24 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
                 proposal = out.strip()
 
                 # Compute elements for MH
-                E_prop = energy(proposal, seed_text)
+                E_prop = energy(proposal, seed_text, model, tokenizer, device)
 
                 # Compute forward probability (probability of generating proposal from current)
+                # forward_inputs = t5_tokenizer(
+                #     f"Rewrite this sentence in the style of Shakespeare: \"{current}\"", 
+                #     return_tensors="pt"
+                # ).to(device)
                 forward_inputs = t5_tokenizer(
-                    f"Rewrite this sentence in the style of Shakespeare: \"{current}\"", 
-                    return_tensors="pt"
+                "Paraphrase the following sentence in the style of William Shakespeare, "
+                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                "while preserving the exact meaning and punctuation. "
+                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                f"Sentence: \"{current}\"",
+                return_tensors="pt"
                 ).to(device)
+
+
+
                 proposal_ids = t5_tokenizer(proposal, return_tensors="pt").input_ids.to(device)
 
                 # Get log probabilities of the proposal sequence
@@ -161,10 +150,19 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
                     q_prop = math.exp(-forward_outputs.loss.item()) + 1e-10
 
                 # Compute backward probability (probability of generating current from current)
+                # backward_inputs = t5_tokenizer(
+                #     f"Rewrite this Shakespeare text in modern English: \"{current}\"", 
+                #     return_tensors="pt"
+                # ).to(device)
                 backward_inputs = t5_tokenizer(
-                    f"Rewrite this Shakespeare text in modern English: \"{current}\"", 
-                    return_tensors="pt"
+                "Paraphrase the following sentence in the style of William Shakespeare, "
+                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                "while preserving the exact meaning and punctuation. "
+                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                f"Sentence: \"{current}\"",
+                return_tensors="pt"
                 ).to(device)
+
                 current_ids = t5_tokenizer(current, return_tensors="pt").input_ids.to(device)
 
                 # Get log probabilities of the current sequence
@@ -226,23 +224,25 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
         torch.cuda.empty_cache()  # Add after summarizer usage
         
         # Compute Jscore for this summary/BlockMH
-        Jscore_summary_num += compute_inidvidual_Jscore(summary, seed_text)
-        Jscore_block_num += compute_inidvidual_Jscore(blockMH, seed_text)
+        Jscore_summary_num += compute_inidvidual_Jscore(summary, seed_text, model, tokenizer, device, formality_classifier)
+        Jscore_block_num += compute_inidvidual_Jscore(blockMH, seed_text, model, tokenizer, device, formality_classifier)
 
         seed_data['blockMH'] = {
             'text': blockMH,
-            'energy': float(energy(blockMH, seed_text))
+            'energy': float(energy(blockMH, seed_text, model, tokenizer, device))
         }
         
         seed_data['summary'] = {
             'text': summary,
-            'energy': float(energy(summary, seed_text))
+            # 'energy': float(energy(summary, seed_text, model, tokenizer, device))
+            'energy': float(np.mean([energy(s, seed_text, model, tokenizer, device) for s in summary]))
+
         }
         
         # Add scores
         seed_data['scores'] = {
-            'jscore_summary': float(compute_inidvidual_Jscore(summary, seed_text)),
-            'jscore_blockMH': float(compute_inidvidual_Jscore(blockMH, seed_text))
+            'jscore_summary': float(compute_inidvidual_Jscore(summary, seed_text, model, tokenizer, device, formality_classifier)),
+            'jscore_blockMH': float(compute_inidvidual_Jscore(blockMH, seed_text, model, tokenizer, device, formality_classifier))
         }
         
         experiment_data['seeds'].append(seed_data)
@@ -265,11 +265,6 @@ print(f"Jscore Block: {Jscores_block}")
 output_file = f"experiment_results_{experiment_results['timestamp']}.json"
 with open(output_file, 'w') as f:
     json.dump(experiment_results, f, indent=2)
-
-
-
-
-
 
 
 

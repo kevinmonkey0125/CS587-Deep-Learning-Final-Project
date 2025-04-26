@@ -7,7 +7,7 @@ from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from bert_score import BERTScorer
 
 # Paths
-MODEL_DIR = "./final"
+MODEL_DIR = './roberta-style-clf/checkpoint-7506'
 TEST_PARALLEL = "./processed/test_parallel.csv"
 OUTPUT_CSV = "./processed/test_energy_scores.csv"
 
@@ -37,7 +37,7 @@ def rescaled_BERTScore(candidates, references, batch_size=64):
         model_type="roberta-base",
         rescale_with_baseline=True,  # Enable rescaling with baseline
         baseline_path=None,  # Will use default baseline
-        device="cpu"  # Force CPU computation to avoid OOM
+        device="cuda" if torch.cuda.is_available() else "cpu"
     )
     
     scores = []

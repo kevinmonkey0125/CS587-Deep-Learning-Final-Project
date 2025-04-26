@@ -1,5 +1,4 @@
 # This script fine-tunes a RoBERTa model for sequence classification
-
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from datasets import Dataset
@@ -11,6 +10,8 @@ from transformers import (
 )
 import numpy as np
 from sklearn.metrics import accuracy_score
+from transformers import IntervalStrategy
+
 
 # Load the classifier training data
 data_path = "./processed/train_labeled.csv"
@@ -39,15 +40,17 @@ model = RobertaForSequenceClassification.from_pretrained("roberta-base", num_lab
 # Training arguments
 training_args = TrainingArguments(
     output_dir="./roberta-style-clf",
-    per_device_train_batch_size=16,
-    per_device_eval_batch_size=16,
-    num_train_epochs=3,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    num_train_epochs=5,
     learning_rate=2e-5,
     save_steps=500,
     save_total_limit=1,
     logging_steps=100,
     logging_dir="./logs"
 )
+
+
 
 # Evaluation metrics
 def compute_metrics(eval_pred):
