@@ -9,21 +9,21 @@ def energy(x, seed, model, tokenizer, device, ALPHA_DISC=0.5, ALPHA_BERT=0.5):
 
 def compute_inidvidual_Jscore(output, seed, model, tokenizer, device, formality_classifier):
     if isinstance(output, list):  # 如果是 summary (list of sentences)
-        print("➡️ Running Jscore for SUMMARY (multi-sentence)")
+        print(" Running Jscore for SUMMARY (multi-sentence)")
         accs, sims, fls = [], [], []
         for i, sent in enumerate(output):
-            print(f"\n📘 Sentence {i+1}: {sent}")
+            print(f"\n Sentence {i+1}: {sent}")
 
             # Accuracy (probability it's Shakespeare)
             _, probs = compute_E_disc(sent, model, tokenizer, device)
             acc = 1 if probs[1] > probs[0] else 0
             accs.append(acc)
-            print(f"  ✅ ACC: {acc} (probs = {probs})")
+            print(f"   ACC: {acc} (probs = {probs})")
 
             # Similarity to seed
             sim = rescaled_BERTScore([sent], [seed])[0]
             sims.append(sim)
-            print(f"  🔁 SIM: {sim}")
+            print(f"   SIM: {sim}")
 
             # Formality level
             formality_result = formality_classifier(sent)[0]
@@ -49,7 +49,7 @@ def compute_inidvidual_Jscore(output, seed, model, tokenizer, device, formality_
 
         formality_result = formality_classifier(output)[0]
         fl = 1 if formality_result['label'] == 'LABEL_1' else 0
-        print(f"  🧑 FL: {fl} (label = {formality_result['label']})")
+        print(f"   FL: {fl} (label = {formality_result['label']})")
 
         final_score = acc * sim * fl
         print(f"\n Final Jscore = {final_score:.4f}")
