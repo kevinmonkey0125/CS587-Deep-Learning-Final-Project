@@ -7,25 +7,6 @@ def energy(x, seed, model, tokenizer, device, ALPHA_DISC=0.5, ALPHA_BERT=0.5):
     return ALPHA_DISC * E_disc + ALPHA_BERT * E_bert
 
 
-# def compute_inidvidual_Jscore(output_sentence, seed_text, model, tokenizer, device):
-#     # p(Shakespeare | output_sentence)
-#     _, probs = compute_E_disc(output_sentence, model, tokenizer, device)
-#     ACC = 1 if probs[1] > probs[0] else 0
-#     print(f"ACC: {ACC}")
-    
-#     # Similarity score
-#     SIM = rescaled_BERTScore([output_sentence], [seed_text])[0]
-#     print(f"SIM: {SIM}")
-    
-#     # Formality score
-#     formality_result = formality_classifier(output_sentence)[0]
-    
-#     FL = 1 if formality_result['label'] == 'LABEL_1' else 0
-#     print(f"FL: {FL}")
-    
-#     # Compute individual score
-#     return ACC * SIM * FL
-
 def compute_inidvidual_Jscore(output, seed, model, tokenizer, device, formality_classifier):
     if isinstance(output, list):  # 如果是 summary (list of sentences)
         print("➡️ Running Jscore for SUMMARY (multi-sentence)")
@@ -52,26 +33,26 @@ def compute_inidvidual_Jscore(output, seed, model, tokenizer, device, formality_
 
         # Final score
         avg_score = (sum(accs)/len(accs)) * (sum(sims)/len(sims)) * (sum(fls)/len(fls))
-        print(f"\n🧮 Final averaged Jscore = {avg_score:.4f}")
+        print(f"\n Final averaged Jscore = {avg_score:.4f}")
         return avg_score
 
     else:  # 如果是單句 blockMH
-        print("➡️ Running Jscore for BLOCK (single sentence)")
-        print(f"\n📗 Sentence: {output}")
+        print(" Running Jscore for BLOCK (single sentence)")
+        print(f"\n Sentence: {output}")
 
         _, probs = compute_E_disc(output, model, tokenizer, device)
         acc = 1 if probs[1] > probs[0] else 0
-        print(f"  ✅ ACC: {acc} (probs = {probs})")
+        print(f"   ACC: {acc} (probs = {probs})")
 
         sim = rescaled_BERTScore([output], [seed])[0]
-        print(f"  🔁 SIM: {sim}")
+        print(f"   SIM: {sim}")
 
         formality_result = formality_classifier(output)[0]
         fl = 1 if formality_result['label'] == 'LABEL_1' else 0
-        print(f"  🧑‍⚖️ FL: {fl} (label = {formality_result['label']})")
+        print(f"  🧑 FL: {fl} (label = {formality_result['label']})")
 
         final_score = acc * sim * fl
-        print(f"\n🧮 Final Jscore = {final_score:.4f}")
+        print(f"\n Final Jscore = {final_score:.4f}")
         return final_score
 
 
