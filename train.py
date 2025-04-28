@@ -20,9 +20,9 @@ logging.set_verbosity_error()
 ALPHA_DISC = 0.5    # weight of E_disc
 ALPHA_BERT = 0.5    # weight of E_BERTScore
 N_ITER = 25         # MH iterations per chain
-S = 5  # Numebr of seed sentences from test set
-NUM_CHAINS = 3  # Number of parallel chains per seed
-NUM_EXPERIMENTS = 1  # Number of experiments to run
+S = 20  # Numebr of seed sentences from test set
+NUM_CHAINS = 10  # Number of parallel chains per seed
+NUM_EXPERIMENTS = 30  # Number of experiments to run
 SEED = 42  # Random seed for reproducibility
 
 random.seed(SEED)
@@ -97,18 +97,19 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
 
             for t in tqdm(range(1, N_ITER + 1), desc=f"Iterations (Chain {chain_id})", position=3, leave=False):
                 E_current = energy(current, seed_text, model, tokenizer, device)
+                print(f"Current: {current}")
                 
                 # Propose a new sentence
                 ### May have to modify prompt.
-                # prompt = f'Rewrite this sentence in the style of Shakespeare: "{current}"'
+                prompt = f'Rewrite this sentence in the style of Shakespeare: "{current}"'
                 # prompt = f'Paraphrase the following sentence using early modern English without mentioning Shakespeare or writing about styles:\n"{current}"'
-                prompt = (
-                "Paraphrase the following sentence in the style of William Shakespeare, "
-                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
-                "while preserving the exact meaning and punctuation. "
-                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
-                f"Sentence: \"{current}\""
-                )
+                # prompt = (
+                # "Paraphrase the following sentence in the style of William Shakespeare, "
+                # "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                # "while preserving the exact meaning and punctuation. "
+                # "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                # f"Sentence: \"{current}\""
+                # )
 
                 ### Could consider different temperatures later
                 ### proposal may add unnecessary words: change propmt????
@@ -118,23 +119,24 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
                     num_return_sequences=1
                 )[0]["generated_text"]
                 proposal = out.strip()
+                print(f"Proposal: {proposal}")
 
                 # Compute elements for MH
                 E_prop = energy(proposal, seed_text, model, tokenizer, device)
 
                 # Compute forward probability (probability of generating proposal from current)
-                # forward_inputs = t5_tokenizer(
-                #     f"Rewrite this sentence in the style of Shakespeare: \"{current}\"", 
-                #     return_tensors="pt"
-                # ).to(device)
                 forward_inputs = t5_tokenizer(
-                "Paraphrase the following sentence in the style of William Shakespeare, "
-                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
-                "while preserving the exact meaning and punctuation. "
-                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
-                f"Sentence: \"{current}\"",
-                return_tensors="pt"
+                    f"Rewrite this sentence in the style of Shakespeare: \"{current}\"", 
+                    return_tensors="pt"
                 ).to(device)
+                # forward_inputs = t5_tokenizer(
+                # "Paraphrase the following sentence in the style of William Shakespeare, "
+                # "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                # "while preserving the exact meaning and punctuation. "
+                # "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                # f"Sentence: \"{current}\"",
+                # return_tensors="pt"
+                # ).to(device)
 
 
 
@@ -150,18 +152,18 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
                     q_prop = math.exp(-forward_outputs.loss.item()) + 1e-10
 
                 # Compute backward probability (probability of generating current from current)
-                # backward_inputs = t5_tokenizer(
-                #     f"Rewrite this Shakespeare text in modern English: \"{current}\"", 
-                #     return_tensors="pt"
-                # ).to(device)
                 backward_inputs = t5_tokenizer(
-                "Paraphrase the following sentence in the style of William Shakespeare, "
-                "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
-                "while preserving the exact meaning and punctuation. "
-                "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
-                f"Sentence: \"{current}\"",
-                return_tensors="pt"
+                    f"Rewrite this Shakespeare text in modern English: \"{current}\"", 
+                    return_tensors="pt"
                 ).to(device)
+                # backward_inputs = t5_tokenizer(
+                # "Paraphrase the following sentence in the style of William Shakespeare, "
+                # "using archaic pronouns (thou, thee, thy), inverted syntax, and Elizabethan diction, "
+                # "while preserving the exact meaning and punctuation. "
+                # "Do not include any direct quotations from Shakespeare's works or mention his name.\n\n"
+                # f"Sentence: \"{current}\"",
+                # return_tensors="pt"
+                # ).to(device)
 
                 current_ids = t5_tokenizer(current, return_tensors="pt").input_ids.to(device)
 
@@ -216,9 +218,9 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
 
         # Get first sentence using BART
         full_summary = summarizer(joined_text, max_length=50, min_length=25, do_sample=False)[0]['summary_text']
-        summary = nltk.sent_tokenize(full_summary)
-    
+        summary = nltk.sent_tokenize(full_summary)[0]
         print(f"Summary: {summary}")
+        print(f"BlockMH: {blockMH}")
 
         # After processing each seed
         torch.cuda.empty_cache()  # Add after summarizer usage
@@ -235,7 +237,7 @@ for exp_id in tqdm(range(NUM_EXPERIMENTS), desc="Experiments", position=0):
         seed_data['summary'] = {
             'text': summary,
             # 'energy': float(energy(summary, seed_text, model, tokenizer, device))
-            'energy': float(np.mean([energy(s, seed_text, model, tokenizer, device) for s in summary]))
+            'energy': float(energy(summary, seed_text, model, tokenizer, device))
 
         }
         

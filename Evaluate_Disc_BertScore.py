@@ -39,6 +39,7 @@ def rescaled_BERTScore(candidates, references, batch_size=64):
         baseline_path=None,  # Will use default baseline
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
+    # print(f"candidates", candidates)
     
     scores = []
     for i in range(0, len(candidates), batch_size):
